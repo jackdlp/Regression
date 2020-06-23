@@ -1,0 +1,169 @@
+---
+title: "First Draft"
+author: "Jack de la Parra"
+date: "6/23/2020"
+output: html_document
+---
+Loading the initial dataset:
+```{project setup, include=TRUE}
+ncaa_volleyball <- read.csv("http://www.stat.cmu.edu/cmsac/sure/materials/data/regression_projects/womens_ncaa_volleyball_20182019.csv")
+```
+
+
+Now attempting to do an EDA, where I will first begin to look at how certain variables correlate with wins
+```{r}
+ncaa_volleyball %>%
+  arrange(desc(w))
+
+install.packages("GGally")
+library(GGally)
+library(tidyverse)
+
+aces <- ncaa_volleyball %>%
+  ggplot(aes(x = aces_per_set, y = w)) +
+  geom_point() +
+  theme_bw()
+plot(aces)
+
+cor(x = ncaa_volleyball$aces_per_set, y = ncaa_volleyball$w)
+ggpairs(ncaa_volleyball, columns = c("aces_per_set", "w"))
+
+# Exploring correlation coefficients as well as histograms of variables to see normality
+# somewhat strong correlation at around  r = .330
+
+
+ncaa_volleyball %>%
+  ggplot(aes(x = assists_per_set, y = w)) +
+  geom_point() +
+  theme_bw()
+
+ggpairs(ncaa_volleyball, columns = c("assists_per_set", "w"))
+
+# very high correlation, around .780
+
+
+ncaa_volleyball %>%
+  ggplot(aes(x = blocks_per_set, y = w)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("blocks_per_set", "w"))
+
+# decently high correlation of around .492
+
+ncaa_volleyball %>%
+  ggplot(aes(x = digs_per_set, y = w)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("digs_per_set", "w"))
+
+# comparatively low correlation, around .254
+
+
+# Group decided using win percentage instead of wins might be more effective for comparisons, since each team played a different number of games
+
+ncaa_volleyball %>%
+  ggplot(aes(x = aces_per_set, y = win_pct)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("aces_per_set", "win_pct"))
+# slightly higher correlation now, around .339 rather than ~.330
+
+ncaa_volleyball %>%
+  ggplot(aes(x = assists_per_set, y = win_pct)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("assists_per_set", "win_pct"))
+# correlation now even higher, around .798
+
+ncaa_volleyball %>%
+  ggplot(aes(x = blocks_per_set, y = win_pct)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("blocks_per_set", "win_pct"))
+# now slightly higher correlation around .507
+
+ncaa_volleyball %>%
+  ggplot(aes(x = digs_per_set, y = win_pct)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("digs_per_set", "win_pct"))
+# slightly higher, but relatively low correlation of around .261
+
+ncaa_volleyball %>%
+  ggplot(aes(x = kills_per_set, y = win_pct)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("kills_per_set", "win_pct"))
+# very high correlation here of 0.824
+
+ncaa_volleyball %>%
+  ggplot(aes(x = hit_pct, y = win_pct)) +
+  geom_point() +
+  theme_bw()
+ggpairs(ncaa_volleyball, columns = c("hit_pct", "win_pct"))
+# highest correlation so far, of around 0.852
+
+# now I will mutate a new variable, attacks per set, in attempt to see if more aggressive offensive teams are more successful
+library(tidyverse)
+ncaa_volleyball_attacks <- ncaa_volleyball %>%
+  mutate(attacks_per_set = total_attacks / s)
+
+cor(x = ncaa_volleyball_attacks$attacks_per_set, y = ncaa_volleyball_attacks$win_pct)
+# There is very low correlation, which implies that attacks and wins are not very strongly related
+
+library(GGally)
+ggpairs(ncaa_volleyball_attacks, columns = c("digs_per_set", "attacks_per_set"))
+```
+
+Beginning to create some potential models to fit the data set in attempts to predict win percentage
+
+```{r}
+init_lm <- lm(win_pct ~ assists_per_set,  ncaa_volleyball)
+
+init_lm$coefficients
+
+summary(init_lm)
+
+# Both p-values are indeed significant, the standard errors appear to be low as well, but perhaps the predictions do not matchup very well with the actual data
+```
+```{r}
+ncaa_volleyball_init <- ncaa_volleyball %>%
+  mutate(init_preds = predict(init_lm)) 
+
+ncaa_volleyball_init %>%
+  ggplot(aes(x = win_pct, y = init_preds)) +
+  geom_point(alpha = 0.5) +
+  theme_bw() +
+  labs(x = "Actual Win Percentage", 
+       y = "Predicted Win Percentage")
+# This appears to be pretty highly correlated and upon running the following function, we can observe a correlation of 0.7978 which is very strong.
+cor(x = ncaa_volleyball_init$win_pct, y = ncaa_volleyball_init$init_preds)
+```
+Now I attempt to make a multi-variable model, utilizing variables from different facets of the game, defense, offense, and secondary offense
+```{r}
+multi_lm <- lm(win_pct ~ assists_per_set + blocks_per_set + kills_per_set, ncaa_volleyball)
+
+summary(multi_lm)
+# They have low p-values and relatively low standard errors. This has a higher adjusted R-squared value as well (which accounts for number of variables included in the model)
+```
+```{r}
+ncaa_volleyball_multi <- ncaa_volleyball %>%
+  mutate(multi_preds = predict(multi_lm)) 
+
+ncaa_volleyball_multi %>%
+  ggplot(aes(x = win_pct, y = multi_preds)) +
+  geom_point(alpha = 0.5) +
+  theme_bw() +
+  labs(x = "Actual Win Percentage", 
+       y = "Predicted Win Percentage")
+
+
+
+# This appears to be very strongly correlated, and we can observe a correlation of 0.8637 by running the following function
+
+cor(x = ncaa_volleyball_multi$win_pct, y = ncaa_volleyball_multi$multi_preds)
+```
+
+
+
+Note: I had originally begun this project in an RScript and then had to move it over to R Markdown file, creating some flaws in formatting
